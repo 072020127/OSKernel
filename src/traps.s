@@ -118,6 +118,7 @@ do_exception_vector:
 
 ret_from_exception:
 
+
 restore_all:
 	kernel_exit
 	sret

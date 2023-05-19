@@ -348,6 +348,21 @@ r_sscratch()
   return x;
 }
 
+#define csr_set(csr, val)					\
+({								\
+	unsigned long __v = (unsigned long)(val);		\
+	__asm__ __volatile__ ("csrs " #csr ", %0"		\
+			      : : "rK" (__v)			\
+			      : "memory");			\
+})
+
+#define csr_clear(csr, val)					\
+({								\
+	unsigned long __v = (unsigned long)(val);		\
+	__asm__ __volatile__ ("csrc " #csr ", %0"		\
+			      : : "rK" (__v)			\
+			      : "memory");			\
+})
 
 
 #endif

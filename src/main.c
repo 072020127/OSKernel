@@ -3,6 +3,7 @@
 #include "riscv.h"
 #include "memory.h"
 #include "kalloc.h"
+#include "definitions.h"
 
 extern void trap_init(void);
 extern void timer_init(void);
@@ -11,7 +12,8 @@ void main()
 {
     char a;
     int num = 52010420; 
-        trap_init();
+        
+        
         // unsigned long i;
         // for(i=65500;;i++){
         //     printf("%d\n",i);
@@ -21,6 +23,12 @@ void main()
         printf("kernel buddy size:%d\n",buddy_size(0x80000000));
         buddy_alloc(5);
         
+        trap_init();
+        plic_init();
+        plic_inithart();
+        uart_init();
+        timer_init();
+        proc_init();
         // timer_init();
         // kmeminit();
         // void*r[10];
@@ -36,10 +44,10 @@ void main()
         // GETCHAR;
         // 
         // putchar('a');
-        while(1);
-
-
         
+        //scheduler();
+
+        while(1);
         
 }
 

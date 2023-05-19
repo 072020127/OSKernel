@@ -1,6 +1,11 @@
 #include "riscv.h"
 #include "ptregs.h"
 #include "printf.h"
+#include "definitions.h"
+#include "memorylayout.h"
+#include "io.h"
+#include "spinlock.h"
+#include "proc.h"
 
 #define SCAUSE_EC (0xf) /* 支持16个异常*/
 #define SOFT_INT 1
@@ -94,12 +99,34 @@ static inline const struct fault_info *ec_to_fault_info(unsigned int scause)
 	return fault_info + (scause & SCAUSE_EC);
 }
 
+uint32 ticks = 0;
+spinlock tickslock;
+
+
 // 定时器中断处理函数
 void timer_irq_handle(){
-	printf("timer_int\n");
+
 	//todo:安排进程调度等工作
+	acquire_lock(&tickslock);
+  	ticks++;
+  	//wakeup(&ticks);
+  	release_lock(&tickslock);
+    printf("ticks :%d\n", ticks);
+
+	if(myproc() != 0 && myproc()->proc_state == RUNNING){
+		struct PCB *p = myproc();
+        if ((ticks - p->entry_time) > (1 << p->chosen_queue)) {
+          if (p->chosen_queue < 5)
+            p->chosen_queue++;
+          p->entry_time = ticks;
+
+		  yield();
+		}
+
+	}
 
 	timer_reset();
+
 }
 
 // 软件中断处理函数
@@ -109,27 +136,48 @@ void soft_irq_handle(){
 }
 
 // 外部中断处理函数
-void ex_irq_handle(){
+void ex_irq_handle(struct pt_regs *regs){
 	//todo:
-	panic("ex_irq todo");
+	
+		uint64 irq = plic_claim();
+		int hwirq = io_read_32(irq);
+		//printf("ex irq = %d\n",hwirq);
+
+
+		if(hwirq == UART0_IRQ){
+			//printf("uart hahdler tigs\n");
+			uart_handler();
+			io_write_32(hwirq, irq);
+		}
+		else{
+			panic("ex intr");
+		}
+
+
 }
 
 void do_exception(struct pt_regs *regs, unsigned long scause)
 {
 	const struct fault_info *inf;
 
-	// printf("%s, scause:%p\n", __func__, scause);
+	if(intr_get() != 0)//设备中断有效
+    	panic("kerneltrap: interrupts enabled");
 
 	if (scause & SCAUSE_INT) {
 		// 中断异常处理
 		switch (scause & ~SCAUSE_INT)
 		{
 		case SOFT_INT:
-			soft_irq_handle();break;
+			//printf("soft_irq_handle tigs\n");
+			soft_irq_handle();
+			break;
 		case TIMER_INT:
-			timer_irq_handle();break;
+			timer_irq_handle();
+			break;
 		case EX_INT:
-			ex_irq_handle();break;
+			//printf("ex_irq_handle tigs\n");
+			ex_irq_handle(regs);
+			break;
 		default:
 			panic("unknown interrupt type");
 			break;
@@ -148,6 +196,7 @@ void trap_init(void)
 	/* 设置异常向量表地址 */
 	w_stvec((uint64)do_exception_vector);
 	printf("stvec=%p, %p\n", r_stvec(), do_exception_vector);
+	printf("trap init done\n");
 	/* 使能所有中断 */
 	w_sie(-1);
 }
